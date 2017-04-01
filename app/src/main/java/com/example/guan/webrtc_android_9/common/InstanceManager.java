@@ -101,7 +101,6 @@ public class InstanceManager {
         this.localInstanceId = localInstanceId;
 
 
-
         /**
          *从信令服务器中获得的一系列参数中，有一个是clientId :
          *  clientId是构成messageUrl的一部分，而messageUrl是客户端发送offer的地址；
@@ -241,6 +240,7 @@ public class InstanceManager {
 
     public void setRemoteInstanceId(String remoteInstanceId) {
         if (messageParameters == null) {
+            //这种初始化方式有问题。。。。。。以后再商榷
             messageParameters = new AppRTC_Common.MessageParameters(sigParms.roomId,
                     sigParms.clientId,
                     remoteInstanceId,
@@ -248,7 +248,7 @@ public class InstanceManager {
         } else {
             messageParameters.remoteInstanceId = remoteInstanceId;
         }
-        this.remoteInstanceId=remoteInstanceId;
+        this.remoteInstanceId = remoteInstanceId;
     }
 
     public String getRemoteInstanceId() {
@@ -355,17 +355,15 @@ public class InstanceManager {
                         Log.e(TAG, "WebSocket Send Bye: " + json.toString());
                         wsClient.send(json.toString());
 
-                        isClosed=true;
+                        isClosed = true;
 
-                    }catch (Exception e)
-                    {
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
 
                 }
             });
-        }catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -393,28 +391,34 @@ public class InstanceManager {
             isMute = true;
         }
 
-        JSONObject json = new JSONObject();
+        final JSONObject json = new JSONObject();
         jsonPut(json, "switch", isMute);
         jsonPut(json, "type", "muteswitch");
-        jsonPut(json, "receiverId", messageParameters.remoteInstanceId);
+        jsonPut(json, "receiverId", remoteInstanceId);
         jsonPut(json, "senderId", localInstanceId);
         Log.e(TAG, "send mediastreamAudioSwitch: localInstanceId:" + localInstanceId + "\tremote: " + messageParameters.remoteInstanceId);
-        //wsClient.send(json.toString());
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                wsClient.send(json.toString());
+            }
+        });
+
     }
 
     /**
      * 更新静音开关的图标，即是否显示静音标识
      */
     public void updateAudioSwitchView() {
+        if (mute_imgv == null) {
+            mute_imgv = new ImageView(mContext);
+            ViewGroup.LayoutParams params = remoteRenderer.getLayoutParams();
+            params.width = 30;
+            params.height = 30;
+            mute_imgv.setLayoutParams(params);
+        }
         //remoteRenderer.posi
         if (isMute) {
-            if (mute_imgv == null) {
-                mute_imgv = new ImageView(mContext);
-                ViewGroup.LayoutParams params = remoteRenderer.getLayoutParams();
-                params.width=30;
-                params.height=30;
-                mute_imgv.setLayoutParams(params);
-            }
             mute_imgv.setVisibility(View.VISIBLE);
         } else {
             mute_imgv.setVisibility(View.GONE);

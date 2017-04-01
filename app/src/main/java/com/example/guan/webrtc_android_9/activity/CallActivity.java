@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -75,6 +76,9 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
     private Button recover_btn;
     private EglBase rootEglBase;
     private TextView roomID_tv;
+    private ImageView imageView_1;
+    private ImageView imageView_2;
+    private ImageView imageView_3;
 
     //线程相关
     private ScheduledExecutorService executor;
@@ -111,8 +115,8 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         //在这里才能正确获得render_layout控件的宽度和高度
-        AppConstant.RENDERERHEIGHT=renderer_layout.getHeight();
-        AppConstant.RENDERERWIDTH=renderer_layout.getWidth();
+        AppConstant.RENDERERHEIGHT = renderer_layout.getHeight();
+        AppConstant.RENDERERWIDTH = renderer_layout.getWidth();
 
 
     }
@@ -137,7 +141,7 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
             }
         });
 
-        clientManager = new ClientManager(this,MaxInstance, handler);
+        clientManager = new ClientManager(this, MaxInstance, handler);
 
 
     }
@@ -167,6 +171,10 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
         clientManager.getStack_AvailableRemoteRender().push(remoteRender_3);
         clientManager.getStack_AvailableRemoteRender().push(remoteRender_2);
         clientManager.getStack_AvailableRemoteRender().push(remoteRender_1);
+
+        imageView_1=(ImageView)findViewById(R.id.mute_imgv_1);
+        imageView_2=(ImageView)findViewById(R.id.mute_imgv_2);
+        imageView_3=(ImageView)findViewById(R.id.mute_imgv_3);
 
         cancel_btn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -200,9 +208,7 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
                                 public void run() {
                                     closeOwn();
                                 }
-                            },2,TimeUnit.SECONDS);
-
-
+                            }, 2, TimeUnit.SECONDS);
 
 
                         } else if (button == YesOrNoDialog.ClickedButton.NEGATIVE) {
@@ -220,24 +226,30 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
             @Override
             public boolean onLongClick(View v) {
                 //return false;
-                switch (v.getId()) {
-                    case R.id.remote_renderer_1:
-                        Log.e(TAG, "remote_renderer_1 OnLongClickListener");
-                        break;
-                    case R.id.remote_renderer_2:
-                        Log.e(TAG, "remote_renderer_2 OnLongClickListener");
-                        break;
-                    case R.id.remote_renderer_3:
-                        Log.e(TAG, "remote_renderer_3 OnLongClickListener");
-                        break;
-                }
+                String localInstanceId=(String)v.getTag();
+                InstanceManager instanceManager=clientManager.getInstanceManager(localInstanceId);
+                instanceManager.mediastreamAudioSwitch();
+
+//                switch (v.getId()) {
+//                    case R.id.remote_renderer_1:
+//                        Log.e(TAG, "remote_renderer_1 OnLongClickListener");
+//                        break;
+//                    case R.id.remote_renderer_2:
+//                        Log.e(TAG, "remote_renderer_2 OnLongClickListener");
+//                        break;
+//                    case R.id.remote_renderer_3:
+//                        Log.e(TAG, "remote_renderer_3 OnLongClickListener");
+//                        break;
+//                }
+
                 return true;
+
             }
         };
 
-        remoteRender_1.setOnLongClickListener(listener);
-        remoteRender_2.setOnLongClickListener(listener);
-        remoteRender_3.setOnLongClickListener(listener);
+//        remoteRender_1.setOnLongClickListener(listener);
+//        remoteRender_2.setOnLongClickListener(listener);
+//        remoteRender_3.setOnLongClickListener(listener);
         //renderer_layout.setOnLongClickListener(listener);
 
         recover_btn.setOnClickListener(new View.OnClickListener() {
@@ -307,10 +319,8 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
         });
     }
 
-    private void updateRenderView(final SurfaceViewRenderer renderer)
-    {
-        if (renderer==null)
-        {
+    private void updateRenderView(final SurfaceViewRenderer renderer) {
+        if (renderer == null) {
             return;
         }
         //设置大小
@@ -343,6 +353,8 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
             Log.e(TAG, "stack_AvailableRemoteRender.pop()：remoteRender is null");
             return false;
         }
+        //这里就标记了每个render属于哪一个instance
+        viewRenderer.setTag(instanceManager.getLocalInstanceId());
         instanceManager.setRemoteRenderer(viewRenderer);
 
         //指定WSMessageEvent
@@ -507,7 +519,6 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
                                         InstanceManager instanceManager = (InstanceManager) entry.getValue();
                                         instanceManager.setPeerInitiator(isPeerInitiator);
 
-
                                         //加入房间成功，开始分配资源
                                         if (!allocateResources(instanceManager)) {
                                             showToast("资源分配失败，终止链接");
@@ -658,26 +669,30 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
                 clientManager.reportError(instanceManager.getLocalInstanceId(),
                         "localInstanceId:" + instanceManager.getLocalInstanceId() + "ICE disconnected.");
 
-                final ViewGroup.LayoutParams params=instanceManager.getRemoteRenderer().getLayoutParams();
-                CallActivity.this.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        instanceManager.getRemoteRenderer().setLayoutParams(params);
-                    }
-                });
+//                final ViewGroup.LayoutParams params=instanceManager.getRemoteRenderer().getLayoutParams();
+//                CallActivity.this.runOnUiThread(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        instanceManager.getRemoteRenderer().setLayoutParams(params);
+//                    }
+//                });
+                updateRenderView(instanceManager.getRemoteRenderer());
 
             } else if (iceConnectionState == PeerConnection.IceConnectionState.FAILED) {
                 clientManager.reportError(instanceManager.getLocalInstanceId(),
                         "localInstanceId:" + instanceManager.getLocalInstanceId() + "\tICE connection failed.");
 
-                final ViewGroup.LayoutParams params=instanceManager.getRemoteRenderer().getLayoutParams();
-                CallActivity.this.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        instanceManager.getRemoteRenderer().setLayoutParams(params);
-                    }
-                });
+//                final ViewGroup.LayoutParams params=instanceManager.getRemoteRenderer().getLayoutParams();
+//                CallActivity.this.runOnUiThread(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        instanceManager.getRemoteRenderer().setLayoutParams(params);
+//                    }
+//                });
+                updateRenderView(instanceManager.getRemoteRenderer());
+
             }
+
 
         }
 
@@ -1039,13 +1054,11 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
                         //instanceManager.disconnect();
                         clientManager.requestConnectionAsInitiator(instanceManager.getLocalInstanceId());
 
-                    } else if(type.equals("muteswitch"))
-                    {
-                        Log.e(TAG,"收到静音消息：说明远端已经把mediastream的声音关闭");
+                    } else if (type.equals("muteswitch")) {
+                        Log.e(TAG, "收到静音消息：说明远端已经把mediastream的声音关闭");
                         instanceManager.setMute(json.getBoolean("switch"));
                         instanceManager.updateAudioSwitchView();
-                    }
-                    else {
+                    } else {
                         clientManager.reportError(instanceManager.getLocalInstanceId(), "Unexpected WebSocket message: " + msg);
                     }
                 } else {

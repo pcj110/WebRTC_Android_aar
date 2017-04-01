@@ -32,6 +32,14 @@
             android:layout_alignParentTop="true"
             android:clickable="true" />
 
+        <ImageView
+            android:id="@+id/mute_imgv_1"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/mute"
+            android:visibility="gone"
+            />
+
 
         <org.webrtc.SurfaceViewRenderer
             android:id="@+id/remote_renderer_2"
@@ -41,7 +49,13 @@
             android:layout_alignParentLeft="true"
             android:clickable="true" />
 
-
+        <ImageView
+            android:id="@+id/mute_imgv_2"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/mute"
+            android:visibility="gone"
+            />
 
 
         <org.webrtc.SurfaceViewRenderer
@@ -51,6 +65,14 @@
             android:layout_alignParentBottom="true"
             android:layout_alignParentRight="true"
             android:clickable="true" />
+
+        <ImageView
+            android:id="@+id/mute_imgv_3"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/mute"
+            android:visibility="gone"
+            />
 
     </RelativeLayout>
 
