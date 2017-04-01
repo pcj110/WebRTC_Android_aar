@@ -59,6 +59,7 @@ public class InstanceManager {
     private CallActivity.SDPObserver sdpObserver;
 
     private SurfaceViewRenderer remoteRenderer;
+    private ImageView mute_imgv;
     private MediaStream mediaStream;
 
     private boolean peerInitiator;
@@ -71,7 +72,6 @@ public class InstanceManager {
 
     private Context mContext;
 
-    ImageView mute_imgv;
 
     private static String TAG = AppRTC_Common.TAG_COMM + "InstanceManager";
 
@@ -156,6 +156,14 @@ public class InstanceManager {
 
     public void setRemoteRenderer(SurfaceViewRenderer remoteRenderer) {
         this.remoteRenderer = remoteRenderer;
+    }
+
+    public ImageView getMute_imgv() {
+        return mute_imgv;
+    }
+
+    public void setMute_imgv(ImageView mute_imgv) {
+        this.mute_imgv = mute_imgv;
     }
 
     public AppRTC_Common.RoomState getRoomState() {
@@ -383,11 +391,19 @@ public class InstanceManager {
      * 设置本地音效开关，并通知远端
      */
     public void mediastreamAudioSwitch() {
+
+        if (remoteInstanceId==null||remoteInstanceId.equals(""))
+        {
+            return;
+        }
+
         if (isMute) {
-            mediaStream.audioTracks.get(0).setEnabled(false);
+            mediaStream.audioTracks.get(0).setEnabled(true);
+            mediaStream.videoTracks.get(0).setEnabled(true);
             isMute = false;
         } else {
-            mediaStream.audioTracks.get(0).setEnabled(true);
+            mediaStream.audioTracks.get(0).setEnabled(false);
+            mediaStream.videoTracks.get(0).setEnabled(false);
             isMute = true;
         }
 
@@ -396,7 +412,8 @@ public class InstanceManager {
         jsonPut(json, "type", "muteswitch");
         jsonPut(json, "receiverId", remoteInstanceId);
         jsonPut(json, "senderId", localInstanceId);
-        Log.e(TAG, "send mediastreamAudioSwitch: localInstanceId:" + localInstanceId + "\tremote: " + messageParameters.remoteInstanceId);
+        Log.e(TAG, "send mediastreamAudioSwitch: localInstanceId:" + localInstanceId +
+                "\tremote: " + remoteInstanceId);
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -410,19 +427,19 @@ public class InstanceManager {
      * 更新静音开关的图标，即是否显示静音标识
      */
     public void updateAudioSwitchView() {
-        if (mute_imgv == null) {
-            mute_imgv = new ImageView(mContext);
-            ViewGroup.LayoutParams params = remoteRenderer.getLayoutParams();
-            params.width = 30;
-            params.height = 30;
-            mute_imgv.setLayoutParams(params);
-        }
-        //remoteRenderer.posi
-        if (isMute) {
-            mute_imgv.setVisibility(View.VISIBLE);
-        } else {
-            mute_imgv.setVisibility(View.GONE);
-        }
+//        if (mute_imgv == null) {
+//            mute_imgv = new ImageView(mContext);
+//            ViewGroup.LayoutParams params = remoteRenderer.getLayoutParams();
+//            params.width = 30;
+//            params.height = 30;
+//            mute_imgv.setLayoutParams(params);
+//        }
+//        //remoteRenderer.posi
+//        if (isMute) {
+//            mute_imgv.setVisibility(View.VISIBLE);
+//        } else {
+//            mute_imgv.setVisibility(View.GONE);
+//        }
 
 
     }

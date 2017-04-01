@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
 import com.example.guan.webrtc_android_9.activity.CallActivity;
 
@@ -34,6 +35,8 @@ public class ClientManager {
     private HashMap<String, InstanceManager> map_instaces = new HashMap<>();
 
     private Stack<SurfaceViewRenderer> stack_AvailableRemoteRender = new Stack<>();
+    private Stack<ImageView> stack_AvailableMuteImgview = new Stack<>();
+
 
     private Context mContext;
 
@@ -64,6 +67,10 @@ public class ClientManager {
 
     public Stack<SurfaceViewRenderer> getStack_AvailableRemoteRender() {
         return stack_AvailableRemoteRender;
+    }
+
+    public Stack<ImageView> getStack_AvailableMuteImgview() {
+        return stack_AvailableMuteImgview;
     }
 
     public void setFactory(PeerConnectionFactory factory) {
@@ -127,6 +134,10 @@ public class ClientManager {
             Log.e(TAG, "无可用的RemoteRender");
             return null;
         }
+    }
+
+    public ImageView getAvailableImageView(){
+        return stack_AvailableMuteImgview.pop();
     }
 
 

@@ -176,6 +176,11 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
         imageView_2=(ImageView)findViewById(R.id.mute_imgv_2);
         imageView_3=(ImageView)findViewById(R.id.mute_imgv_3);
 
+        clientManager.getStack_AvailableMuteImgview().push(imageView_3);
+        clientManager.getStack_AvailableMuteImgview().push(imageView_2);
+        clientManager.getStack_AvailableMuteImgview().push(imageView_1);
+
+
         cancel_btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -228,7 +233,10 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
                 //return false;
                 String localInstanceId=(String)v.getTag();
                 InstanceManager instanceManager=clientManager.getInstanceManager(localInstanceId);
-                instanceManager.mediastreamAudioSwitch();
+                if (instanceManager!=null)
+                {
+                    instanceManager.mediastreamAudioSwitch();
+                }
 
 //                switch (v.getId()) {
 //                    case R.id.remote_renderer_1:
@@ -247,9 +255,9 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
             }
         };
 
-//        remoteRender_1.setOnLongClickListener(listener);
-//        remoteRender_2.setOnLongClickListener(listener);
-//        remoteRender_3.setOnLongClickListener(listener);
+        remoteRender_1.setOnLongClickListener(listener);
+        remoteRender_2.setOnLongClickListener(listener);
+        remoteRender_3.setOnLongClickListener(listener);
         //renderer_layout.setOnLongClickListener(listener);
 
         recover_btn.setOnClickListener(new View.OnClickListener() {
@@ -319,6 +327,10 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
         });
     }
 
+    /**
+     * 重新计算renderer的宽和高，同时也起到了刷新的作用
+     * @param renderer
+     */
     private void updateRenderView(final SurfaceViewRenderer renderer) {
         if (renderer == null) {
             return;
@@ -356,6 +368,8 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
         //这里就标记了每个render属于哪一个instance
         viewRenderer.setTag(instanceManager.getLocalInstanceId());
         instanceManager.setRemoteRenderer(viewRenderer);
+
+        instanceManager.setMute_imgv(clientManager.getAvailableImageView());
 
         //指定WSMessageEvent
         instanceManager.setWsMessageEvent(wsMessageEvent);
@@ -444,6 +458,24 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
         }
     }
 
+
+    private void updateAudioSwitchView(String localInstanceId)
+    {
+        InstanceManager instanceManager=clientManager.getInstanceManager(localInstanceId);
+        final ImageView mute_imgv=instanceManager.getMute_imgv();
+        final boolean isMute=instanceManager.isMute();
+        CallActivity.this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (isMute) {
+                    mute_imgv.setVisibility(View.VISIBLE);
+                } else {
+                    mute_imgv.setVisibility(View.GONE);
+                }
+            }
+        });
+
+    }
 
     //=============================================================================
 
@@ -1055,9 +1087,10 @@ public class CallActivity extends AppCompatActivity implements AppRTC_Common.ICa
                         clientManager.requestConnectionAsInitiator(instanceManager.getLocalInstanceId());
 
                     } else if (type.equals("muteswitch")) {
-                        Log.e(TAG, "收到静音消息：说明远端已经把mediastream的声音关闭");
-                        instanceManager.setMute(json.getBoolean("switch"));
-                        instanceManager.updateAudioSwitchView();
+                        Log.e(TAG, "收到静音消息："+json.toString());
+                        boolean isMute=json.getBoolean("switch");
+                        instanceManager.setMute(isMute);
+                        updateAudioSwitchView(instanceManager.getLocalInstanceId());
                     } else {
                         clientManager.reportError(instanceManager.getLocalInstanceId(), "Unexpected WebSocket message: " + msg);
                     }
