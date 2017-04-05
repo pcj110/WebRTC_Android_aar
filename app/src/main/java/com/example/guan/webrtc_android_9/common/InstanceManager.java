@@ -3,8 +3,6 @@ package com.example.guan.webrtc_android_9.common;
 import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
-import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import com.example.guan.webrtc_android_9.activity.CallActivity;
@@ -260,7 +258,9 @@ public class InstanceManager {
     }
 
     public String getRemoteInstanceId() {
-        if (messageParameters != null) {
+        if (remoteInstanceId != null) {
+            return remoteInstanceId;
+        } else if (messageParameters != null) {
             return messageParameters.remoteInstanceId;
         } else {
             return "";
@@ -350,31 +350,6 @@ public class InstanceManager {
             //remoteRenderer.clearAnimation();
         }
 
-        Log.e(TAG, "======WebSocketSendBye======");
-        try {
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        JSONObject json = new JSONObject();
-                        jsonPut(json, "type", "bye");
-                        jsonPut(json, "receiverId", remoteInstanceId);
-                        jsonPut(json, "senderId", localInstanceId);
-                        Log.e(TAG, "WebSocket Send Bye: " + json.toString());
-                        wsClient.send(json.toString());
-
-                        isClosed = true;
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-
-                }
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
 
         Log.e(TAG, "=====Closing mediaStream.======");
         if (mediaStream != null) {
@@ -386,63 +361,56 @@ public class InstanceManager {
 
     }
 
+    public void sendByeToPeer() {
+        Log.e(TAG, "======WebSocketSendBye======");
+        try {
+            JSONObject json = new JSONObject();
+            jsonPut(json, "type", "bye");
+            jsonPut(json, "receiverId", remoteInstanceId);
+            jsonPut(json, "senderId", localInstanceId);
+            Log.e(TAG, "WebSocket Send Bye: " + json.toString());
+            wsClient.send(json.toString());
+
+            isClosed = true;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * 静音开关
      * 设置本地音效开关，并通知远端
      */
-    public void mediastreamAudioSwitch() {
+    public void sendAudioSwitch() {
 
-        if (remoteInstanceId==null||remoteInstanceId.equals(""))
-        {
-            return;
-        }
-
-        if (isMute) {
-            mediaStream.audioTracks.get(0).setEnabled(true);
-            mediaStream.videoTracks.get(0).setEnabled(true);
-            isMute = false;
-        } else {
-            mediaStream.audioTracks.get(0).setEnabled(false);
-            mediaStream.videoTracks.get(0).setEnabled(false);
-            isMute = true;
-        }
+//        if (remoteInstanceId == null || remoteInstanceId.equals("")) {
+//            return;
+//        }
+//
+//        if (isMute) {
+//            mediaStream.audioTracks.get(0).setEnabled(true);
+//            //mediaStream.videoTracks.get(0).setEnabled(true);
+//            isMute = false;
+//        } else {
+//            mediaStream.audioTracks.get(0).setEnabled(false);
+//            //mediaStream.videoTracks.get(0).setEnabled(false);
+//            isMute = true;
+//        }
 
         final JSONObject json = new JSONObject();
         jsonPut(json, "switch", isMute);
         jsonPut(json, "type", "muteswitch");
         jsonPut(json, "receiverId", remoteInstanceId);
         jsonPut(json, "senderId", localInstanceId);
-        Log.e(TAG, "send mediastreamAudioSwitch: localInstanceId:" + localInstanceId +
+        Log.e(TAG, "send changeAndSendAudioSwitch: localInstanceId:" + localInstanceId +
                 "\tremote: " + remoteInstanceId);
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                wsClient.send(json.toString());
-            }
-        });
 
-    }
-
-    /**
-     * 更新静音开关的图标，即是否显示静音标识
-     */
-    public void updateAudioSwitchView() {
-//        if (mute_imgv == null) {
-//            mute_imgv = new ImageView(mContext);
-//            ViewGroup.LayoutParams params = remoteRenderer.getLayoutParams();
-//            params.width = 30;
-//            params.height = 30;
-//            mute_imgv.setLayoutParams(params);
-//        }
-//        //remoteRenderer.posi
-//        if (isMute) {
-//            mute_imgv.setVisibility(View.VISIBLE);
-//        } else {
-//            mute_imgv.setVisibility(View.GONE);
-//        }
+        wsClient.send(json.toString());
 
 
     }
+
 
     /**
      * 暂停视频画面

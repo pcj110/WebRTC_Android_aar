@@ -101,7 +101,7 @@ public class CallActivity extends AppCompatActivity {
 
     //辅助相关
     VideoAudioHelper vaHelper;
-    private int MaxInstance = 2;
+    private int MaxInstance = 3;
 
 
     @Override
@@ -132,6 +132,10 @@ public class CallActivity extends AppCompatActivity {
         clientManager = new ClientManager(this, MaxInstance, handler);
     }
 
+    private void initUI2() {
+
+    }
+
 
     /**
      * 向服务器发出请求。获得回应，进行处理。
@@ -159,18 +163,7 @@ public class CallActivity extends AppCompatActivity {
                         final AppRTC_Common.SignalingParameters sigParms =
                                 JsonHelper.roomHttpResponseParse(response);
 
-                        if (sigParms.result.equals("FULL")) {
-                            showToast("房间已满！");
-                            CallActivity.this.setResult(RESULT_OK);
-                            CallActivity.this.finish();
-                            return;
-                        }
-
-                        if (!checkIfRoomIsCreated(sigParms.initiator, sigParms.clientId)) {
-                            CallActivity.this.setResult(RESULT_OK);
-                            CallActivity.this.finish();
-                            return;
-                        }
+                        checkIfRoomIsCreated(sigParms.initiator);
                         /**
                          * Slave通过这种方式获取房间号
                          */
@@ -183,6 +176,7 @@ public class CallActivity extends AppCompatActivity {
                                 public void run() {
                                     initClient(sigParms);
                                     showLocalVideo();
+
                                     startCall();
                                 }
                             });
@@ -216,21 +210,6 @@ public class CallActivity extends AppCompatActivity {
             }
         });
 
-        updateRenderView(localRender);
-        updateRenderView(remoteRender_1);
-        updateRenderView(remoteRender_2);
-        updateRenderView(remoteRender_3);
-
-//        if (selected_role == AppRTC_Common.RoomRole.MASTER) {
-//            updateAudioSwitchView(imageView_1, false);
-//            updateAudioSwitchView(imageView_2, false);
-//            updateAudioSwitchView(imageView_3, false);
-//        } else {
-        updateAudioSwitchView(imageView_1, false);
-        updateAudioSwitchView(imageView_2, false);
-        updateAudioSwitchView(imageView_3, false);
-//        }
-
 
         clientManager.setSigParms(sigParams);
 
@@ -258,9 +237,9 @@ public class CallActivity extends AppCompatActivity {
      *
      * @param initiator
      */
-    private boolean checkIfRoomIsCreated(boolean initiator, String clientId) {
+    private void checkIfRoomIsCreated(boolean initiator) {
         String roomLeave_Url = AppRTC_Common.selected_WebRTC_URL + "/" + ROOM_LEAVE + "/" +
-                AppRTC_Common.selected_roomId + "/" + clientId + "/123";
+                AppRTC_Common.selected_roomId;
 
         if (initiator) {
             if (AppRTC_Common.selected_role == AppRTC_Common.RoomRole.SLAVE) {
@@ -268,7 +247,6 @@ public class CallActivity extends AppCompatActivity {
                 leaveRoomAndFinishActivity(AppRTC_Common.MessageType.LEAVE,
                         roomLeave_Url,
                         null);
-                return false;
             } else {
                 CallActivity.this.runOnUiThread(new Runnable() {
                     @Override
@@ -276,7 +254,6 @@ public class CallActivity extends AppCompatActivity {
                         role_tv.setText("MASTER");
                     }
                 });
-                return true;
             }
         } else {
             if (AppRTC_Common.selected_role == AppRTC_Common.RoomRole.MASTER) {
@@ -284,7 +261,6 @@ public class CallActivity extends AppCompatActivity {
                 leaveRoomAndFinishActivity(AppRTC_Common.MessageType.LEAVE,
                         roomLeave_Url,
                         null);
-                return false;
             } else {
                 CallActivity.this.runOnUiThread(new Runnable() {
                     @Override
@@ -292,7 +268,6 @@ public class CallActivity extends AppCompatActivity {
                         role_tv.setText("SLAVE");
                     }
                 });
-                return true;
             }
         }
 
@@ -321,11 +296,12 @@ public class CallActivity extends AppCompatActivity {
                         JSONObject roomJson = new JSONObject(response);
                         String result = roomJson.getString("result");
                         if (!result.equals("SUCCESS")) {
-//                            CallActivity.this.setResult(RESULT_CANCELED);
-//                            CallActivity.this.finish();
+                            CallActivity.this.setResult(RESULT_CANCELED);
+                            CallActivity.this.finish();
                         } else {
                             //Log.d(TAG,"sendPostMessage success");
-
+                            CallActivity.this.setResult(RESULT_OK);
+                            CallActivity.this.finish();
                         }
                     } catch (JSONException e) {
                         e.printStackTrace();
@@ -384,7 +360,7 @@ public class CallActivity extends AppCompatActivity {
                  */
 
                 final YesOrNoDialog yesOrNoDialog = new YesOrNoDialog(CallActivity.this);
-                yesOrNoDialog.setMeesage("您确定要退出房间吗？");
+                yesOrNoDialog.setMeesage("您确定要退出房间吗？ \n\n退出后将不可再加入该房间。");
                 yesOrNoDialog.setCallback(new YesOrNoDialog.YesOrNoDialogCallback() {
                     @Override
                     public void onClickButton(YesOrNoDialog.ClickedButton button, String message) {
@@ -399,6 +375,7 @@ public class CallActivity extends AppCompatActivity {
                                         public void run() {
                                             entry.getValue().sendByeToPeer();
                                             entry.getValue().disconnect();
+
                                         }
                                     });
                                 } catch (Exception e) {
@@ -422,11 +399,16 @@ public class CallActivity extends AppCompatActivity {
             @Override
             public boolean onLongClick(View v) {
                 //return false;
-                if (selected_role == AppRTC_Common.RoomRole.SLAVE) {
-                    return true;
+                String localInstanceId = (String) v.getTag();
+                final InstanceManager instanceManager = clientManager.getInstance(localInstanceId);
+                if (instanceManager != null) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            instanceManager.changeAndSendAudioSwitch();
+                        }
+                    });
                 }
-                final String localInstanceId = (String) v.getTag();
-                changeAndSendAudioSwitch(localInstanceId);
                 return true;
 
             }
@@ -518,34 +500,6 @@ public class CallActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-    }
-
-    private void changeAndSendAudioSwitch(String localInstanceId) {
-        final InstanceManager instanceManager = clientManager.getInstance(localInstanceId);
-        String remoteInstanceId = instanceManager.getRemoteInstanceId();
-        boolean isMute = instanceManager.isMute();
-        if (remoteInstanceId == null || remoteInstanceId.equals("")) {
-            return;
-        }
-
-        if (isMute) {
-            instanceManager.getMediaStream().audioTracks.get(0).setEnabled(true);
-            //mediaStream.videoTracks.get(0).setEnabled(true);
-            instanceManager.setMute(false);
-            updateAudioSwitchView(instanceManager.getMute_imgv(), false);
-        } else {
-            instanceManager.getMediaStream().audioTracks.get(0).setEnabled(false);
-            //mediaStream.videoTracks.get(0).setEnabled(false);
-            instanceManager.setMute(true);
-            updateAudioSwitchView(instanceManager.getMute_imgv(), true);
-        }
-
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                instanceManager.sendAudioSwitch();
-            }
-        });
     }
     //=======================================================================================
 
@@ -681,14 +635,6 @@ public class CallActivity extends AppCompatActivity {
             Log.e(TAG, localInstanceId + ":Failed to Create MediaStream");
             return false;
         }
-//        if (selected_role == AppRTC_Common.RoomRole.MASTER) {
-//
-//        } else {
-//            mediaStream.audioTracks.get(0).setEnabled(true);
-//            instanceManager.setMute(false);
-//        }
-        mediaStream.audioTracks.get(0).setEnabled(true);
-        instanceManager.setMute(false);
         instanceManager.setMediaStream(mediaStream);
 
         //将mediaStream添加到peerConnection中
@@ -763,14 +709,16 @@ public class CallActivity extends AppCompatActivity {
                 clientManager.reportError(instanceManager.getLocalInstanceId(),
                         "localInstanceId:" + instanceManager.getLocalInstanceId() + "ICE disconnected.");
 
+                updateRenderView(instanceManager.getRemoteRenderer());
+
             } else if (iceConnectionState == PeerConnection.IceConnectionState.FAILED) {
                 clientManager.reportError(instanceManager.getLocalInstanceId(),
                         "localInstanceId:" + instanceManager.getLocalInstanceId() + "\tICE connection failed.");
-                //updateRenderView(instanceManager.getRemoteRenderer());
+
+                updateRenderView(instanceManager.getRemoteRenderer());
 
             }
 
-            updateRenderView(instanceManager.getRemoteRenderer());
 
         }
 
@@ -1131,14 +1079,13 @@ public class CallActivity extends AppCompatActivity {
                     } else if (type.equals("bye")) {
                         Log.e(TAG, "==========recieve bye!========");
                         //instanceManager.disconnect();
-                        //updateAudioSwitchView(instanceManager.getMute_imgv(),true);
                         clientManager.requestConnectionAsInitiator(instanceManager.getLocalInstanceId());
 
                     } else if (type.equals("muteswitch")) {
                         Log.e(TAG, "收到静音消息：" + json.toString());
                         boolean isMute = json.getBoolean("switch");
                         instanceManager.setMute(isMute);
-                        updateAudioSwitchView(instanceManager.getMute_imgv(), instanceManager.isMute());
+                        updateAudioSwitchView(instanceManager.getLocalInstanceId());
                     } else {
                         clientManager.reportError(instanceManager.getLocalInstanceId(), "Unexpected WebSocket message: " + msg);
                     }
@@ -1183,18 +1130,14 @@ public class CallActivity extends AppCompatActivity {
     /**
      * 更新静音开关的图标，即是否显示静音标识
      */
-    private void updateAudioSwitchView(final ImageView mute_imgv, final boolean isMute) {
-//        InstanceManager instanceManager = clientManager.getInstance(localInstanceId);
-//        final ImageView mute_imgv = instanceManager.getMute_imgv();
-        //final boolean isMute = instanceManager.isMute();
+    private void updateAudioSwitchView(String localInstanceId) {
+        InstanceManager instanceManager = clientManager.getInstance(localInstanceId);
+        final ImageView mute_imgv = instanceManager.getMute_imgv();
+        final boolean isMute = instanceManager.isMute();
         CallActivity.this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (isMute) {
-                    ViewGroup.LayoutParams layoutParams = mute_imgv.getLayoutParams();
-                    layoutParams.width = AppConstant.RENDERERWIDTH / 2;
-                    layoutParams.height = (AppConstant.RENDERERHEIGHT) / 2;
-                    mute_imgv.setLayoutParams(layoutParams);
                     mute_imgv.setVisibility(View.VISIBLE);
                 } else {
                     mute_imgv.setVisibility(View.GONE);

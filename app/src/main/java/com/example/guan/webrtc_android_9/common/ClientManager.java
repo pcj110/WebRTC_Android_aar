@@ -3,10 +3,7 @@ package com.example.guan.webrtc_android_9.common;
 import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
-import android.view.ViewGroup;
 import android.widget.ImageView;
-
-import com.example.guan.webrtc_android_9.activity.CallActivity;
 
 import org.webrtc.MediaConstraints;
 import org.webrtc.PeerConnection;
@@ -14,7 +11,6 @@ import org.webrtc.PeerConnectionFactory;
 import org.webrtc.SurfaceViewRenderer;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Stack;
 
 import static com.example.guan.webrtc_android_9.common.Helpers.createInstanceId;
@@ -43,6 +39,8 @@ public class ClientManager {
     private Handler handler;
 
     private PeerConnectionFactory factory;
+    PeerConnection.RTCConfiguration rtcConfig;
+
 
     public ClientManager(Context mContext, int maxInstance, Handler handler) {
         this.mContext = mContext;
@@ -73,12 +71,27 @@ public class ClientManager {
         return stack_AvailableMuteImgview;
     }
 
+    public PeerConnectionFactory getFactory() {
+        return factory;
+    }
+
     public void setFactory(PeerConnectionFactory factory) {
         this.factory = factory;
     }
-//=====================================
 
-    public void init() {
+    public PeerConnection.RTCConfiguration getRtcConfig() {
+        return rtcConfig;
+    }
+
+    public void setRtcConfig(PeerConnection.RTCConfiguration rtcConfig) {
+        this.rtcConfig = rtcConfig;
+    }
+    //=====================================
+
+    /**
+     * 创建多个InstanceManager，但是并没有非配相关资源
+     */
+    public void createInstances() {
 
         if (sigParms == null) {
             Log.e(TAG, "初始化ClientManager失败——sigParms==null:访问房间服务器的返回的参数为空。无法连接");
@@ -111,7 +124,7 @@ public class ClientManager {
         Log.d(TAG, "初始化多个Instance成功----map_instaces.size() = " + map_instaces.size());
     }
 
-    public InstanceManager getInstanceManager(String instanceId) {
+    public InstanceManager getInstance(String instanceId) {
         if (map_instaces.containsKey(instanceId)) {
             return map_instaces.get(instanceId);
         } else {
@@ -144,22 +157,24 @@ public class ClientManager {
     public void recreatePeerConnection(InstanceManager instanceManager) {
         String localInstanceId = instanceManager.getLocalInstanceId();
 
-        //根据信令服务器传回来的iceserver参数，生成PeerConnection的配置
-        PeerConnection.RTCConfiguration rtcConfig =
-                new PeerConnection.RTCConfiguration(instanceManager.getSigParms().iceServers);
-        // TCP candidates are only useful when connecting to a server that supports
-        // ICE-TCP.
-        rtcConfig.tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED;
-        rtcConfig.bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE;
-        rtcConfig.rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE;
-        rtcConfig.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
-        // Use ECDSA encryption.
-        rtcConfig.keyType = PeerConnection.KeyType.ECDSA;
-        MediaConstraints pcConstraints = new MediaConstraints();
+        if (rtcConfig==null)
+        {
+            //根据信令服务器传回来的iceserver参数，生成PeerConnection的配置
+            rtcConfig = new PeerConnection.RTCConfiguration(sigParms.iceServers);
+            // TCP candidates are only useful when connecting to a server that supports
+            // ICE-TCP.
+            rtcConfig.tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED;
+            rtcConfig.bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE;
+            rtcConfig.rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE;
+            rtcConfig.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
+            // Use ECDSA encryption.
+            rtcConfig.keyType = PeerConnection.KeyType.ECDSA;
+        }
+
 
         //创建并指定PeerConnection
         PeerConnection peerConnection = factory.createPeerConnection(rtcConfig,
-                pcConstraints,
+                new MediaConstraints(),
                 instanceManager.getPcObserver());// 注意 pcObserver 的动作
         instanceManager.setPeerConnection(peerConnection);
         if (null == peerConnection) {
@@ -171,14 +186,6 @@ public class ClientManager {
 
     }
 
-    public boolean isAllInstanceClosed() {
-        for (Map.Entry<String, InstanceManager> entry : map_instaces.entrySet()) {
-            if (!entry.getValue().isClosed()) {
-                return false;
-            }
-        }
-        return true;
-    }
 
 
     /**
@@ -214,11 +221,12 @@ public class ClientManager {
         if (!map_instaces.containsKey(localInstanceId)) {
             return;
         }
+
         InstanceManager instanceManager = map_instaces.get(localInstanceId);
 
-        //执行断开，并回收render
-        //instanceManager.disconnect();
-        //stack_AvailableRemoteRender.push(instanceManager.getRemoteRenderer());
+//        instanceManager.setMute(true);
+//        instanceManager.getMediaStream().audioTracks.get(0).setEnabled(false);
+
         instanceManager.setPeerInitiator(true);
         instanceManager.setClosed(false);
         recreatePeerConnection(instanceManager);

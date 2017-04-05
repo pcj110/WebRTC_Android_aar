@@ -109,9 +109,20 @@
             android:id="@+id/recover_btn"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:layout_marginLeft="30dp"
+            android:layout_marginLeft="20dp"
             android:layout_toRightOf="@+id/Cancel_btn"
             android:background="@drawable/ic_action_return_from_full_screen" />
+
+        <TextView
+            android:id="@+id/Role_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:layout_marginLeft="10dp"
+            android:layout_toRightOf="@+id/recover_btn"
+            android:gravity="right|center_vertical"
+            android:text="123456"
+            android:textColor="@color/white"
+            android:textSize="15dp" />
 
 
     </RelativeLayout>
