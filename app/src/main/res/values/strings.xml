@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">9_WebRTC多人视频通话Demo</string>
+    <string name="app_name">测试_WebRTC多人视频通话Demo</string>
     <string name="title_activity_call">CallActivity</string>
 </resources>

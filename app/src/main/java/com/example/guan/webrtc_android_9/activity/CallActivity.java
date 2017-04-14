@@ -8,6 +8,7 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -26,6 +27,8 @@ import com.example.guan.webrtc_android_9.common.JsonHelper;
 import com.example.guan.webrtc_android_9.common.VideoAudioHelper;
 import com.example.guan.webrtc_android_9.common.WebSocketClient;
 import com.example.guan.webrtc_android_9.utils.AsyncHttpURLConnection;
+import com.example.guan.webrtc_android_9.utils.ClickUtil;
+import com.example.guan.webrtc_android_9.view.AudioControlDialog;
 import com.example.guan.webrtc_android_9.view.YesOrNoDialog;
 
 import org.json.JSONArray;
@@ -81,9 +84,15 @@ public class CallActivity extends AppCompatActivity {
     private EglBase rootEglBase;
     private TextView roomID_tv;
     private TextView role_tv;
-    private ImageView imageView_1;
-    private ImageView imageView_2;
-    private ImageView imageView_3;
+
+
+    private ImageView speaker_imgv_1;
+    private ImageView speaker_imgv_2;
+    private ImageView speaker_imgv_3;
+
+    private ImageView microphone_imgv_1;
+    private ImageView microphone_imgv_2;
+    private ImageView microphone_imgv_3;
 
     //线程相关
     private ScheduledExecutorService executor;
@@ -93,7 +102,7 @@ public class CallActivity extends AppCompatActivity {
 
     //连接对象相关
     private PeerConnectionFactory factory;
-    private PeerConnectionFactory.Options factoryOpyions;
+    private PeerConnectionFactory.Options factoryOptions;
 
     CallActivity.WSMessageEvent wsMessageEvent;
     WebSocketClient wsClient;
@@ -101,7 +110,7 @@ public class CallActivity extends AppCompatActivity {
 
     //辅助相关
     VideoAudioHelper vaHelper;
-    private int MaxInstance = 2;
+    private int MaxInstance = 3;
 
 
     @Override
@@ -131,6 +140,265 @@ public class CallActivity extends AppCompatActivity {
 
         clientManager = new ClientManager(this, MaxInstance, handler);
     }
+    //==============================================================
+
+    private void initUI() {
+        Window window = this.getWindow();
+        window.setStatusBarColor(Color.BLACK);
+
+        cancel_btn = (Button) this.findViewById(R.id.Cancel_btn);
+        recover_btn = (Button) this.findViewById(R.id.recover_btn);
+        roomID_tv = (TextView) this.findViewById(R.id.RoomID_tv);
+        role_tv = (TextView) this.findViewById(R.id.Role_tv);
+        roomID_tv.setText(AppRTC_Common.selected_roomId);
+
+
+        //设置视频的框框
+        localRender = (SurfaceViewRenderer) findViewById(R.id.local_renderer);
+        remoteRender_1 = (SurfaceViewRenderer) findViewById(R.id.remote_renderer_1);
+        remoteRender_2 = (SurfaceViewRenderer) findViewById(R.id.remote_renderer_2);
+        remoteRender_3 = (SurfaceViewRenderer) findViewById(R.id.remote_renderer_3);
+        renderer_layout = (RelativeLayout) findViewById(R.id.renderer_layout);
+        rootEglBase = EglBase.create();
+        renderSetting(localRender, true);
+        renderSetting(remoteRender_1, false);
+        renderSetting(remoteRender_2, false);
+        renderSetting(remoteRender_3, false);
+        clientManager.getStack_AvailableRemoteRender().push(remoteRender_3);
+        clientManager.getStack_AvailableRemoteRender().push(remoteRender_2);
+        clientManager.getStack_AvailableRemoteRender().push(remoteRender_1);
+
+        //设置静音的图标
+
+        microphone_imgv_1=(ImageView)findViewById(R.id.microphone_imgv_1);
+        microphone_imgv_2=(ImageView)findViewById(R.id.microphone_imgv_2);
+        microphone_imgv_3=(ImageView)findViewById(R.id.microphone_imgv_3);
+        clientManager.getStack_AvailableMicrophoneImgview().push(microphone_imgv_3);
+        clientManager.getStack_AvailableMicrophoneImgview().push(microphone_imgv_2);
+        clientManager.getStack_AvailableMicrophoneImgview().push(microphone_imgv_1);
+
+
+        speaker_imgv_1=(ImageView)findViewById(R.id.speaker_imgv_1);
+        speaker_imgv_2=(ImageView)findViewById(R.id.speaker_imgv_2);
+        speaker_imgv_3=(ImageView)findViewById(R.id.speaker_imgv_3);
+        clientManager.getStack_AvailableSpeakerImgview().push(speaker_imgv_3);
+        clientManager.getStack_AvailableSpeakerImgview().push(speaker_imgv_2);
+        clientManager.getStack_AvailableSpeakerImgview().push(speaker_imgv_1);
+
+
+
+        /**
+         * 注意：视频的render和静音的imageView入栈的顺序。当allocateResources时，同时出栈。
+         * 这样保证了每一个imageView和render的对应。
+         */
+
+
+        //挂断按钮
+        cancel_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //点击取消按钮，中断连接
+                Log.d(TAG, "Click Cancel_btn");
+                /**
+                 * keySet是键的集合，Set里面的类型即key的类型
+                 * entrySet是 键-值 对的集合，Set里面的类型是Map.Entry
+                 */
+
+                final YesOrNoDialog yesOrNoDialog = new YesOrNoDialog(CallActivity.this);
+                yesOrNoDialog.setMeesage("您确定要退出房间吗？");
+                yesOrNoDialog.setCallback(new YesOrNoDialog.YesOrNoDialogCallback() {
+                    @Override
+                    public void onClickButton(YesOrNoDialog.ClickedButton button, String message) {
+                        yesOrNoDialog.dismiss();
+                        if (button == YesOrNoDialog.ClickedButton.POSITIVE) {
+
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+
+                                    for (final Map.Entry<String, InstanceManager> entry : clientManager.getMap_instaces().entrySet()) {
+
+                                        try {
+                                            Log.e(TAG, "close instanceManager: instanceId=" + entry.getKey());
+
+                                            entry.getValue().sendByeToPeer();
+                                            entry.getValue().disconnect();
+
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+
+                                    Log.e(TAG, "Leave Room Server----ClientId:" + clientManager.getSigParms().clientId);
+                                    if (clientManager != null) {
+                                        clientManager.leaveRoomServer();
+                                    }
+                                    Log.d(TAG, "Closing websocket");
+                                    if (wsClient != null) {
+                                        wsClient.disconnect(true);
+                                    }
+
+
+                                    executor.execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            closeOwn();
+                                        }
+                                    });
+                                    executor.shutdown();
+                                }
+                            });
+
+                            Log.e(TAG, "close handler...");
+                            handler.getLooper().quitSafely();
+
+                            Log.e(TAG, "Release Renders...");
+                            if (localRender != null) {
+                                localRender.release();
+                                localRender = null;
+                            }
+                            if (remoteRender_1 != null) {
+                                remoteRender_1.release();
+                                remoteRender_1 = null;
+                            }
+                            if (remoteRender_2 != null) {
+                                remoteRender_2.release();
+                                remoteRender_2 = null;
+                            }
+                            if (remoteRender_3 != null) {
+                                remoteRender_3.release();
+                                remoteRender_3 = null;
+                            }
+
+                            Log.e(TAG, "Finish Activity...");
+                            CallActivity.this.setResult(RESULT_OK);
+                            CallActivity.this.finish();
+
+
+                        } else if (button == YesOrNoDialog.ClickedButton.NEGATIVE) {
+                            yesOrNoDialog.dismiss();
+                        }
+                    }
+                });
+
+                yesOrNoDialog.show();
+            }
+        });
+
+
+        View.OnLongClickListener listener = new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                //return false;
+//                if (selected_role == AppRTC_Common.RoomRole.SLAVE) {
+//                    return true;
+//                }
+                final String localInstanceId = (String) v.getTag();
+                //changeAndSendAudioSwitch(localInstanceId);
+                changeAudioSwitch(localInstanceId);
+                return true;
+
+            }
+        };
+
+        remoteRender_1.setOnLongClickListener(listener);
+        remoteRender_2.setOnLongClickListener(listener);
+        remoteRender_3.setOnLongClickListener(listener);
+        //renderer_layout.setOnLongClickListener(listener);
+
+        recover_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+            }
+        });
+
+    }
+
+    /**
+     * 负责对render进行初始化和设置
+     *
+     * @param renderer
+     */
+    private void renderSetting(final SurfaceViewRenderer renderer, boolean isLocalRenderer) {
+        renderer.init(rootEglBase.getEglBaseContext(), null);
+        //设置大小
+        renderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
+
+        if (isLocalRenderer) {
+            //设置控件叠加到其他控件上面
+            localRender.setZOrderMediaOverlay(true);
+            renderer.setMirror(true);
+        } else {
+            renderer.setMirror(false);
+        }
+
+        renderer.requestLayout();
+        Log.d(TAG, "成功初始化render");
+
+    }
+
+
+    private void closeOwn() {
+        try {
+            Log.e(TAG, "========close Own=======");
+
+            vaHelper.close();
+
+
+            Log.e(TAG, "Closing peer connection factory.");
+            if (factory != null) {
+                //factory.dispose();
+                factory = null;
+            }
+            factoryOptions = null;
+            Log.e(TAG, "Closing peer connection done.");
+            PeerConnectionFactory.stopInternalTracingCapture();
+            PeerConnectionFactory.shutdownInternalTracer();
+
+
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+
+    private void changeAudioSwitch(String localInstanceId)
+    {
+        final InstanceManager instanceManager = clientManager.getInstance(localInstanceId);
+
+        final AudioControlDialog audioControlDialog=new AudioControlDialog(mContext);
+        audioControlDialog.setSwitchState(instanceManager.isLocalAudioState(),instanceManager.isRemoteAudioState());
+        audioControlDialog.setCallback(new AudioControlDialog.AudioControlDialogCallback() {
+            @Override
+            public void onClickAudioSwitch(boolean microphoneIsChecked, boolean speakerStateIsChecked) {
+                audioControlDialog.dismiss();
+
+                instanceManager.changeLocalAudioSwitch(microphoneIsChecked);
+                instanceManager.changeRemoteAudioSwitch(speakerStateIsChecked);
+
+                if (microphoneIsChecked)
+                {
+                    instanceManager.getMicrophone_imgv().setVisibility(View.VISIBLE);
+                }else {
+                    instanceManager.getMicrophone_imgv().setVisibility(View.GONE);
+                }
+
+                if (speakerStateIsChecked)
+                {
+                    instanceManager.getSpeaker_imgv().setVisibility(View.VISIBLE);
+                }else {
+                    instanceManager.getSpeaker_imgv().setVisibility(View.GONE);
+                }
+
+                //showToast(microphoneState+""+speakerState);
+            }
+        });
+
+        audioControlDialog.show();
+    }
+    //===============================================================
 
 
     /**
@@ -221,16 +489,6 @@ public class CallActivity extends AppCompatActivity {
         updateRenderView(remoteRender_2);
         updateRenderView(remoteRender_3);
 
-//        if (selected_role == AppRTC_Common.RoomRole.MASTER) {
-//            updateAudioSwitchView(imageView_1, false);
-//            updateAudioSwitchView(imageView_2, false);
-//            updateAudioSwitchView(imageView_3, false);
-//        } else {
-        updateAudioSwitchView(imageView_1, false);
-        updateAudioSwitchView(imageView_2, false);
-        updateAudioSwitchView(imageView_3, false);
-//        }
-
 
         clientManager.setSigParms(sigParams);
 
@@ -260,7 +518,7 @@ public class CallActivity extends AppCompatActivity {
      */
     private boolean checkIfRoomIsCreated(boolean initiator, String clientId) {
         String roomLeave_Url = AppRTC_Common.selected_WebRTC_URL + "/" + ROOM_LEAVE + "/" +
-                AppRTC_Common.selected_roomId + "/" + clientId + "/123";
+                AppRTC_Common.selected_roomId + "/" + clientId;
 
         if (initiator) {
             if (AppRTC_Common.selected_role == AppRTC_Common.RoomRole.SLAVE) {
@@ -316,238 +574,11 @@ public class CallActivity extends AppCompatActivity {
 
             @Override
             public void onHttpComplete(String response) {
-                if (messageType == AppRTC_Common.MessageType.MESSAGE) {
-                    try {
-                        JSONObject roomJson = new JSONObject(response);
-                        String result = roomJson.getString("result");
-                        if (!result.equals("SUCCESS")) {
-//                            CallActivity.this.setResult(RESULT_CANCELED);
-//                            CallActivity.this.finish();
-                        } else {
-                            //Log.d(TAG,"sendPostMessage success");
-
-                        }
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                }
+                Log.e(TAG, response.toString());
             }
         });
         httpConnection.send();
     }
-
-
-    //================================================================================
-    private void initUI() {
-        Window window = this.getWindow();
-        window.setStatusBarColor(Color.BLACK);
-
-        cancel_btn = (Button) this.findViewById(R.id.Cancel_btn);
-        recover_btn = (Button) this.findViewById(R.id.recover_btn);
-        roomID_tv = (TextView) this.findViewById(R.id.RoomID_tv);
-        role_tv = (TextView) this.findViewById(R.id.Role_tv);
-        roomID_tv.setText(AppRTC_Common.selected_roomId);
-
-
-        //设置视频的框框
-        localRender = (SurfaceViewRenderer) findViewById(R.id.local_renderer);
-        remoteRender_1 = (SurfaceViewRenderer) findViewById(R.id.remote_renderer_1);
-        remoteRender_2 = (SurfaceViewRenderer) findViewById(R.id.remote_renderer_2);
-        remoteRender_3 = (SurfaceViewRenderer) findViewById(R.id.remote_renderer_3);
-        renderer_layout = (RelativeLayout) findViewById(R.id.renderer_layout);
-        rootEglBase = EglBase.create();
-        renderSetting(localRender, true);
-        renderSetting(remoteRender_1, false);
-        renderSetting(remoteRender_2, false);
-        renderSetting(remoteRender_3, false);
-        clientManager.getStack_AvailableRemoteRender().push(remoteRender_3);
-        clientManager.getStack_AvailableRemoteRender().push(remoteRender_2);
-        clientManager.getStack_AvailableRemoteRender().push(remoteRender_1);
-
-        //设置静音的图标
-        imageView_1 = (ImageView) findViewById(R.id.mute_imgv_1);
-        imageView_2 = (ImageView) findViewById(R.id.mute_imgv_2);
-        imageView_3 = (ImageView) findViewById(R.id.mute_imgv_3);
-        clientManager.getStack_AvailableMuteImgview().push(imageView_3);
-        clientManager.getStack_AvailableMuteImgview().push(imageView_2);
-        clientManager.getStack_AvailableMuteImgview().push(imageView_1);
-
-        //挂断按钮
-        cancel_btn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //点击取消按钮，中断连接
-                Log.d(TAG, "Click Cancel_btn");
-                /**
-                 * keySet是键的集合，Set里面的类型即key的类型
-                 * entrySet是 键-值 对的集合，Set里面的类型是Map.Entry
-                 */
-
-                final YesOrNoDialog yesOrNoDialog = new YesOrNoDialog(CallActivity.this);
-                yesOrNoDialog.setMeesage("您确定要退出房间吗？");
-                yesOrNoDialog.setCallback(new YesOrNoDialog.YesOrNoDialogCallback() {
-                    @Override
-                    public void onClickButton(YesOrNoDialog.ClickedButton button, String message) {
-                        yesOrNoDialog.dismiss();
-                        if (button == YesOrNoDialog.ClickedButton.POSITIVE) {
-                            for (final Map.Entry<String, InstanceManager> entry : clientManager.getMap_instaces().entrySet()) {
-
-                                try {
-                                    Log.e(TAG, "close instanceManager: instanceId=" + entry.getKey());
-                                    handler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            entry.getValue().sendByeToPeer();
-                                            entry.getValue().disconnect();
-                                        }
-                                    });
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                            closeOwn();
-
-                        } else if (button == YesOrNoDialog.ClickedButton.NEGATIVE) {
-                            yesOrNoDialog.dismiss();
-                        }
-                    }
-                });
-
-                yesOrNoDialog.show();
-            }
-        });
-
-
-        View.OnLongClickListener listener = new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                //return false;
-                if (selected_role == AppRTC_Common.RoomRole.SLAVE) {
-                    return true;
-                }
-                final String localInstanceId = (String) v.getTag();
-                changeAndSendAudioSwitch(localInstanceId);
-                return true;
-
-            }
-        };
-
-        remoteRender_1.setOnLongClickListener(listener);
-        remoteRender_2.setOnLongClickListener(listener);
-        remoteRender_3.setOnLongClickListener(listener);
-        //renderer_layout.setOnLongClickListener(listener);
-
-        recover_btn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-            }
-        });
-
-    }
-
-    /**
-     * 负责对render进行初始化和设置
-     *
-     * @param renderer
-     */
-    private void renderSetting(final SurfaceViewRenderer renderer, boolean isLocalRenderer) {
-        renderer.init(rootEglBase.getEglBaseContext(), null);
-        //设置大小
-        renderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
-
-        if (isLocalRenderer) {
-            //设置控件叠加到其他控件上面
-            localRender.setZOrderMediaOverlay(true);
-            renderer.setMirror(true);
-        } else {
-            renderer.setMirror(false);
-        }
-
-        renderer.requestLayout();
-        Log.d(TAG, "成功初始化render");
-
-    }
-
-
-    private void closeOwn() {
-        try {
-
-            Log.d(TAG, "Closing websocket");
-            if (wsClient != null) {
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        //和信令服务器断开链接
-                        wsClient.disconnect(true);
-                    }
-                });
-            }
-
-            Log.e(TAG, "========close Own=======");
-
-            if (factory != null) {
-                factory.stopAecDump();
-            }
-
-            Log.d(TAG, "Closing peer connection factory.");
-            if (factory != null) {
-                factory.dispose();
-                factory = null;
-            }
-            factoryOpyions = null;
-            Log.d(TAG, "Closing peer connection done.");
-            PeerConnectionFactory.stopInternalTracingCapture();
-            PeerConnectionFactory.shutdownInternalTracer();
-
-            Log.d(TAG, "Release localRender...");
-            if (localRender != null) {
-                localRender.release();
-                localRender = null;
-            }
-
-            vaHelper.close();
-
-            Log.d(TAG, "close handler...");
-            handler.getLooper().quitSafely();
-
-            Log.d(TAG, "Finish Activity...");
-            CallActivity.this.setResult(RESULT_OK);
-            CallActivity.this.finish();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private void changeAndSendAudioSwitch(String localInstanceId) {
-        final InstanceManager instanceManager = clientManager.getInstance(localInstanceId);
-        String remoteInstanceId = instanceManager.getRemoteInstanceId();
-        boolean isMute = instanceManager.isMute();
-        if (remoteInstanceId == null || remoteInstanceId.equals("")) {
-            return;
-        }
-
-        if (isMute) {
-            instanceManager.getMediaStream().audioTracks.get(0).setEnabled(true);
-            //mediaStream.videoTracks.get(0).setEnabled(true);
-            instanceManager.setMute(false);
-            updateAudioSwitchView(instanceManager.getMute_imgv(), false);
-        } else {
-            instanceManager.getMediaStream().audioTracks.get(0).setEnabled(false);
-            //mediaStream.videoTracks.get(0).setEnabled(false);
-            instanceManager.setMute(true);
-            updateAudioSwitchView(instanceManager.getMute_imgv(), true);
-        }
-
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                instanceManager.sendAudioSwitch();
-            }
-        });
-    }
-    //=======================================================================================
 
     private void showLocalVideo() {
 
@@ -559,9 +590,9 @@ public class CallActivity extends AppCompatActivity {
                     mContext, true, true, true)) {
                 Log.e(TAG, "Failed to initializeAndroidGlobals");
             }
-            factoryOpyions = new PeerConnectionFactory.Options();
-            factoryOpyions.networkIgnoreMask = 0;
-            factory = new PeerConnectionFactory(factoryOpyions);
+            factoryOptions = new PeerConnectionFactory.Options();
+            factoryOptions.networkIgnoreMask = 0;
+            factory = new PeerConnectionFactory(factoryOptions);
             //加上这句话才显示了图像
             factory.setVideoHwAccelerationOptions(rootEglBase.getEglBaseContext(), rootEglBase.getEglBaseContext());
             Log.d(TAG, "Peer connection factory created.");
@@ -647,7 +678,9 @@ public class CallActivity extends AppCompatActivity {
         instanceManager.setRemoteRenderer(viewRenderer);
 
         //指定静音图标mute_imgv
-        instanceManager.setMute_imgv(clientManager.getAvailableImageView());
+        //instanceManager.setMute_imgv(clientManager.getAvailableImageView());
+        instanceManager.setSpeaker_imgv(clientManager.getAvailableSpeakerImgV());
+        instanceManager.setMicrophone_imgv(clientManager.getAvailableMicrophoneImgV());
 
         //指定WSMessageEvent
         instanceManager.setWsMessageEvent(wsMessageEvent);
@@ -687,7 +720,7 @@ public class CallActivity extends AppCompatActivity {
 //            mediaStream.audioTracks.get(0).setEnabled(true);
 //            instanceManager.setMute(false);
 //        }
-        mediaStream.audioTracks.get(0).setEnabled(true);
+        mediaStream.audioTracks.get(0).setEnabled(instanceManager.isLocalAudioState());
         instanceManager.setMute(false);
         instanceManager.setMediaStream(mediaStream);
 
@@ -742,10 +775,15 @@ public class CallActivity extends AppCompatActivity {
         private InstanceManager instanceManager;
         //private IceCandidate localcandidate;
 
+        private MediaStream remoteMediaStream;
+
         public PCObserver(InstanceManager instanceManager) {
             this.instanceManager = instanceManager;
         }
 
+        public MediaStream getRemoteMediaStream() {
+            return remoteMediaStream;
+        }
 
         @Override
         public void onSignalingChange(PeerConnection.SignalingState newState) {
@@ -763,14 +801,15 @@ public class CallActivity extends AppCompatActivity {
                 clientManager.reportError(instanceManager.getLocalInstanceId(),
                         "localInstanceId:" + instanceManager.getLocalInstanceId() + "ICE disconnected.");
 
+                updateRenderView(instanceManager.getRemoteRenderer());
+
             } else if (iceConnectionState == PeerConnection.IceConnectionState.FAILED) {
                 clientManager.reportError(instanceManager.getLocalInstanceId(),
                         "localInstanceId:" + instanceManager.getLocalInstanceId() + "\tICE connection failed.");
-                //updateRenderView(instanceManager.getRemoteRenderer());
+                updateRenderView(instanceManager.getRemoteRenderer());
 
             }
 
-            updateRenderView(instanceManager.getRemoteRenderer());
 
         }
 
@@ -837,6 +876,10 @@ public class CallActivity extends AppCompatActivity {
                 Log.e(TAG, "onAddStream: stream is null");
             }
 
+            remoteMediaStream=mediaStream;
+
+            mediaStream.audioTracks.get(0).setEnabled(instanceManager.isRemoteAudioState());
+
             if (mediaStream.audioTracks.size() > 1 || mediaStream.videoTracks.size() > 1) {
                 Log.e(TAG, "Weird-looking stream: " + mediaStream);
                 return;
@@ -847,6 +890,8 @@ public class CallActivity extends AppCompatActivity {
                 remoteVideoTrack.setEnabled(true); // renderVideo = true;
                 remoteVideoTrack.addRenderer(new VideoRenderer(instanceManager.getRemoteRenderer()));
             }
+
+
 
 
         }
@@ -1137,8 +1182,8 @@ public class CallActivity extends AppCompatActivity {
                     } else if (type.equals("muteswitch")) {
                         Log.e(TAG, "收到静音消息：" + json.toString());
                         boolean isMute = json.getBoolean("switch");
-                        instanceManager.setMute(isMute);
-                        updateAudioSwitchView(instanceManager.getMute_imgv(), instanceManager.isMute());
+                        //instanceManager.setMute(isMute);
+                        //updateAudioSwitchView(instanceManager.getMute_imgv(), instanceManager.isMute());
                     } else {
                         clientManager.reportError(instanceManager.getLocalInstanceId(), "Unexpected WebSocket message: " + msg);
                     }
@@ -1226,5 +1271,17 @@ public class CallActivity extends AppCompatActivity {
         });
     }
 
-
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            Toast.makeText(mContext, "再按一次退出视频通话", Toast.LENGTH_SHORT).show();
+            if (ClickUtil.isFastDoubleClick()) {
+                //主动模拟人的点击动作
+                cancel_btn.performClick();
+            }
+            return true;
+        } else {
+            return super.onKeyDown(keyCode, event);
+        }
+    }
 }

@@ -11,7 +11,6 @@ import android.widget.RadioGroup;
 import com.example.guan.webrtc_android_9.R;
 import com.example.guan.webrtc_android_9.common.AppConstant;
 
-
 /**
  * Created by guan on 3/25/17.
  */
@@ -24,7 +23,7 @@ public class ModeSettingDialog extends Dialog {
     public enum Mode {P_2_M, M_2_M}
 
     public ModeSettingDialog(@NonNull Context context) {
-        super(context, R.style.Dialog_Dim);
+        super(context,R.style.Dialog_Dim);
 
         setCustomeDialog();
 
@@ -47,14 +46,24 @@ public class ModeSettingDialog extends Dialog {
         modesetting_radiogrp.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
-                switch (checkedId) {
-                    case R.id.p_2_m_radiobtn:
-                        callback.onClickRadioButton(Mode.P_2_M);
-                        break;
-                    case R.id.m_2_m_radiobtn:
-                        callback.onClickRadioButton(Mode.M_2_M);
-                        break;
+
+                if (checkedId==R.id.p_2_m_radiobtn)
+                {
+                    callback.onClickRadioButton(Mode.P_2_M);
+
+                }else if (checkedId==R.id.m_2_m_radiobtn)
+                {
+                    callback.onClickRadioButton(Mode.M_2_M);
+
                 }
+//                switch (checkedId) {
+//                    case R.id.p_2_m_radiobtn:
+//                        callback.onClickRadioButton(Mode.P_2_M);
+//                        break;
+//                    case R.id.m_2_m_radiobtn:
+//                        callback.onClickRadioButton(Mode.M_2_M);
+//                        break;
+//                }
                 ModeSettingDialog.this.dismiss();
             }
         });

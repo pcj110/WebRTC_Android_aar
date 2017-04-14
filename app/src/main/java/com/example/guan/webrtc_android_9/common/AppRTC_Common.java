@@ -10,9 +10,6 @@
 
 package com.example.guan.webrtc_android_9.common;
 
-import android.os.Handler;
-import android.os.HandlerThread;
-
 import org.webrtc.IceCandidate;
 import org.webrtc.PeerConnection;
 import org.webrtc.SessionDescription;
